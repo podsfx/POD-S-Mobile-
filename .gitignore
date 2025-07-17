@@ -11,7 +11,100 @@
 ‎const [messages, setMessages] = useState([]);
 ‎const [accessCode, setAccessCode] = useState("");
 ‎const [isAuthenticated, setIsAuthenticated] = useState(false);
-‎
+
+‎import React, { useState, useEffect, useRef } from "react";
+import { View, TextInput, Button, FlatList, Text, StyleSheet, TouchableOpacity } from "react-native";
+import auth from "@react-native-firebase/auth";
+import firestore from "@react-native-firebase/firestore";
+import storage from "@react-native-firebase/storage";
+import functions from "@react-native-firebase/functions";
+import AudioRecorderPlayer from "react-native-audio-recorder-player";
+import { PermissionsAndroid, Platform } from "react-native";
+const [recording, setRecording] = useState(false);
+const [recordSecs, setRecordSecs] = useState(0);
+const [accessCode, setAccessCode] = useState("");
+const [isAuthenticated, setIsAuthenticated] = useState(false);
+const [message, setMessage] = useState("");
+const [messages, setMessages] = useState([]);
+
+
+const audioRecorderPlayer = new AudioRecorderPlayer();
+
+const [recording, setRecording] = useState(false);
+const [recordSecs, setRecordSecs] = useState(0);
+const [accessCode, setAccessCode] = useState("");
+const [isAuthenticated, setIsAuthenticated] = useState(false);
+const [message, setMessage] = useState("");
+const [messages, setMessages] = useState([]);
+
+const requestPermissions = async () => {
+  if (Platform.OS === 'android') {
+    const granted = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+    ]);
+    return granted['android.permission.RECORD_AUDIO'] === PermissionsAndroid.RESULTS.GRANTED;
+  }
+  return true;
+};
+
+const startRecording = async () => {
+  const hasPermission = await requestPermissions();
+  if (!hasPermission) return alert("Permission denied");
+
+  setRecording(true);
+  await audioRecorderPlayer.startRecorder();
+  audioRecorderPlayer.addRecordBackListener((e) => {
+    setRecordSecs(e.current_position);
+    return;
+  });
+};
+
+const stopRecording = async () => {
+  const result = await audioRecorderPlayer.stopRecorder();
+  audioRecorderPlayer.removeRecordBackListener();
+  setRecording(false);
+  uploadVoiceNote(result);
+};
+
+const uploadVoiceNote = async (uri) => {
+  const filename = `voiceNotes/${Date.now()}.mp4`;
+  const reference = storage().ref(filename);
+  await reference.putFile(uri);
+  const url = await reference.getDownloadURL();
+
+  await firestore().collection("messages").add({
+    audio: url,
+    timestamp: firestore.FieldValue.serverTimestamp(),
+    uid: auth().currentUser?.uid || "unknown",
+  });
+};
+const playAudio = async (url) => {
+  await audioRecorderPlayer.startPlayer(url);
+};
+
+renderItem={({ item }) => (
+  item.text ? (
+    <Text style={styles.message}>{item.text}</Text>
+  ) : item.audio ? (
+    <TouchableOpacity onPress={() => playAudio(item.audio)}>
+      <Text style={styles.voiceNote}>▶️ Play Voice Note</Text>
+    </TouchableOpacity>
+  ) : null
+)}
+
+<Button title="Send" onPress={handleSend} />
+<Button
+  title={recording ? "Stop Recording" : "Record Voice Note"}
+  onPress={recording ? stopRecording : startRecording}
+/>
+
+voiceNote: {
+  padding: 10,
+  color: "blue",
+  textDecorationLine: "underline",
+}
+
 ‎useEffect(() => {
 ‎const unsubscribe = firestore()
 ‎.collection("messages")
