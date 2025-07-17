@@ -177,6 +177,6 @@ voiceNote: {
 ‎} else {
 ‎return { success: false };
 ‎}
-‎});
+}‎});
 ‎
 ‎
